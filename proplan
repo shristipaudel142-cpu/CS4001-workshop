@@ -1,0 +1,42 @@
+import java.util.ArrayList;
+
+public class ProPlan extends AIModel {
+    private int availableSlots;
+    private ArrayList<String> teamMembers;
+
+    public ProPlan(String modelName, double price, int parameterCount,
+                   String contextWindow, int availableSlots) {
+        super(modelName, price, parameterCount, contextWindow);
+        this.availableSlots = availableSlots;
+        this.teamMembers = new ArrayList<>();
+    }
+
+    public int getAvailableSlots() { return availableSlots; }
+    public ArrayList<String> getTeamMembers() { return teamMembers; }
+
+    public String addTeamMember(String memberName) {
+        if (memberName == null || memberName.trim().isEmpty()) {
+            return "Error: Please enter a valid team member name";
+        }
+        if (availableSlots <= 0) {
+            return "Error: No available slots for new team members";
+        }
+        teamMembers.add(memberName);
+        availableSlots--;
+        return "✓ Added " + memberName + " to team. Remaining slots: " + availableSlots;
+    }
+
+    public String removeTeamMember(String memberName) {
+        if (teamMembers.remove(memberName)) {
+            availableSlots++;
+            return "✓ Removed " + memberName + " from team. Available slots: " + availableSlots;
+        }
+        return "Error: Team member '" + memberName + "' not found";
+    }
+
+    @Override
+    public String display() {
+        return super.display() + " | [PRO PLAN] Available slots: " + availableSlots +
+                " | Team: " + (teamMembers.isEmpty() ? "None" : teamMembers);
+    }
+}
