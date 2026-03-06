@@ -1,0 +1,33 @@
+public class PersonalPlan extends AIModel {
+    private int promptsRemaining; // monthly quota
+
+    public PersonalPlan(String modelName, double price, int parameterCount,
+                        String contextWindow, int promptsRemaining) {
+        super(modelName, price, parameterCount, contextWindow);
+        this.promptsRemaining = promptsRemaining;
+    }
+
+    public int getPromptsRemaining() { return promptsRemaining; }
+
+    public String purchaseAdditionalPrompts(int additionalPrompts) {
+        if (additionalPrompts < 0) {
+            return "Error: Must enter positive value or upgrade to pro plan";
+        }
+        promptsRemaining += additionalPrompts;
+        return "Successfully added " + additionalPrompts + " prompts. Total: " + promptsRemaining;
+    }
+
+    public String enterPrompt(String promptText, int expectedLength) {
+        if (promptsRemaining <= 0) {
+            return "Error: Monthly quota reached. Please upgrade to Pro Plan.";
+        }
+        promptsRemaining--;
+        return "✓ Prompt sent: \"" + promptText + "\"\n  Token usage: " + expectedLength +
+                "\n  Remaining prompts: " + promptsRemaining;
+    }
+
+    @Override
+    public String display() {
+        return super.display() + " | [PERSONAL PLAN] Prompts left: " + promptsRemaining;
+    }
+}
