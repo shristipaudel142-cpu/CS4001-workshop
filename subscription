@@ -1,0 +1,253 @@
+import javax.swing.*;
+import java.awt.*;
+import java.util.ArrayList;
+import java.io.*;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+
+public class SubscriptionGUI extends JFrame {
+    private ArrayList<AIModel> subscriptions = new ArrayList<>();
+
+    // Text fields
+    private JTextField
+            modelName = new JTextField(12), price = new JTextField(12),
+            param = new JTextField(12), context = new JTextField(12),
+            prompts = new JTextField(12), slots = new JTextField(12),
+            promptText = new JTextField(12), responseLen = new JTextField(12),
+            memberName = new JTextField(12), indexField = new JTextField(5);
+
+    private JTextArea display = new JTextArea(12, 50);
+
+    public SubscriptionGUI() {
+        setTitle("AI Subscription Manager");
+        setDefaultCloseOperation(EXIT_ON_CLOSE);
+        setLayout(new BorderLayout(5, 5));
+
+        // Input panel
+        JPanel input = new JPanel(new GridBagLayout());
+        input.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
+        GridBagConstraints g = new GridBagConstraints();
+        g.fill = GridBagConstraints.HORIZONTAL;
+        g.insets = new Insets(2, 2, 2, 2);
+
+        String[] labels = {"Model:", "Price:", "Params:", "Context:",
+                "Prompts:", "Slots:", "Prompt:", "Resp Len:",
+                "Member:", "Index:"};
+        JTextField[] fields = {modelName, price, param, context, prompts,
+                slots, promptText, responseLen, memberName, indexField};
+
+        for (int i = 0; i < labels.length; i++) {
+            g.gridx = 0; g.gridy = i;
+            input.add(new JLabel(labels[i]), g);
+            g.gridx = 1;
+            input.add(fields[i], g);
+        }
+
+        // Buttons
+        String[] btnLabels = {"Add Personal", "Add Pro", "Display", "Clear",
+                "Prompt", "Add Member", "Remove Member",
+                "Check Type", "Export", "Load"};
+        Runnable[] actions = {this::addPersonal, this::addPro, this::displayAll,
+                this::clearFields, this::givePrompt, this::addMember,
+                this::removeMember, this::checkType, this::exportFile,
+                this::loadFile};
+
+        JPanel buttons = new JPanel(new GridLayout(0, 3, 3, 3));
+        for (int i = 0; i < btnLabels.length; i++) {
+            JButton btn = new JButton(btnLabels[i]);
+            int idx = i;
+            btn.addActionListener(e -> actions[idx].run());
+            buttons.add(btn);
+        }
+
+        g.gridx = 0; g.gridy = labels.length; g.gridwidth = 2;
+        input.add(buttons, g);
+
+        // Display area
+        display.setFont(new Font("Monospaced", Font.PLAIN, 12));
+        display.setEditable(false);
+        JScrollPane scroll = new JScrollPane(display);
+        scroll.setBorder(BorderFactory.createTitledBorder("Output"));
+
+        add(input, BorderLayout.NORTH);
+        add(scroll, BorderLayout.CENTER);
+
+        pack();
+        setLocationRelativeTo(null);
+    }
+
+    private int getIndex() {
+        try {
+            int idx = Integer.parseInt(indexField.getText().trim());
+            if (idx >= 0 && idx < subscriptions.size()) return idx;
+            JOptionPane.showMessageDialog(this, "Invalid index (0-" + (subscriptions.size()-1) + ")");
+        } catch (NumberFormatException e) {
+            JOptionPane.showMessageDialog(this, "Please enter a valid number");
+        }
+        return -1;
+    }
+
+    private void addPersonal() {
+        try {
+            subscriptions.add(new PersonalPlan(
+                    getText(modelName), getDouble(price), getInt(param),
+                    getText(context), getInt(prompts)));
+            display.append("✓ Added Personal: " + modelName.getText() + "\n");
+            clearFields();
+        } catch (Exception e) {
+            showError(e.getMessage());
+        }
+    }
+
+    private void addPro() {
+        try {
+            subscriptions.add(new ProPlan(
+                    getText(modelName), getDouble(price), getInt(param),
+                    getText(context), getInt(slots)));
+            display.append("✓ Added Pro: " + modelName.getText() + "\n");
+            clearFields();
+        } catch (Exception e) {
+            showError(e.getMessage());
+        }
+    }
+
+    private void displayAll() {
+        if (subscriptions.isEmpty()) {
+            display.setText("No subscriptions\n");
+            return;
+        }
+        StringBuilder sb = new StringBuilder("=== ALL SUBSCRIPTIONS ===\n");
+        for (int i = 0; i < subscriptions.size(); i++)
+            sb.append("[" + i + "] " + subscriptions.get(i).display() + "\n");
+        display.setText(sb.toString());
+    }
+
+    private void clearFields() {
+        for (JTextField f : new JTextField[]{modelName, price, param, context,
+                prompts, slots, promptText, responseLen, memberName, indexField})
+            f.setText("");
+    }
+
+    private void givePrompt() {
+        int idx = getIndex();
+        if (idx == -1) return;
+
+        AIModel m = subscriptions.get(idx);
+        if (!(m instanceof PersonalPlan)) {
+            showError("Not a Personal Plan");
+            return;
+        }
+
+        try {
+            String result = ((PersonalPlan)m).enterPrompt(
+                    getText(promptText), getInt(responseLen));
+            display.append("\n" + result + "\n");
+        } catch (Exception e) {
+            showError(e.getMessage());
+        }
+    }
+
+    private void addMember() {
+        processMember(true);
+    }
+
+    private void removeMember() {
+        processMember(false);
+    }
+
+    private void processMember(boolean add) {
+        int idx = getIndex();
+        if (idx == -1) return;
+
+        AIModel m = subscriptions.get(idx);
+        if (!(m instanceof ProPlan)) {
+            showError("Not a Pro Plan");
+            return;
+        }
+
+        ProPlan p = (ProPlan)m;
+        String name = memberName.getText().trim();
+        if (name.isEmpty()) {
+            showError("Enter member name");
+            return;
+        }
+
+        String result = add ? p.addTeamMember(name) : p.removeTeamMember(name);
+        display.append("\n" + result + "\n");
+        JOptionPane.showMessageDialog(this, result);
+    }
+
+    private void checkType() {
+        int idx = getIndex();
+        if (idx == -1) return;
+
+        AIModel m = subscriptions.get(idx);
+        String msg;
+        if (m instanceof PersonalPlan) {
+            PersonalPlan p = (PersonalPlan)m;
+            msg = "PERSONAL PLAN\nPrompts left: " + p.getPromptsRemaining();
+        } else if (m instanceof ProPlan) {
+            ProPlan p = (ProPlan)m;
+            msg = "PRO PLAN\nSlots: " + p.getAvailableSlots() +
+                    "\nMembers: " + p.getTeamMembers();
+        } else {
+            msg = "Unknown type";
+        }
+        JOptionPane.showMessageDialog(this, msg);
+    }
+
+    private void exportFile() {
+        if (subscriptions.isEmpty()) {
+            showError("No data to export");
+            return;
+        }
+
+        String file = "subscriptions_" +
+                LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")) + ".txt";
+
+        try (PrintWriter w = new PrintWriter(file)) {
+            w.println("AI SUBSCRIPTIONS - " + LocalDateTime.now());
+            w.println("=".repeat(50));
+            for (int i = 0; i < subscriptions.size(); i++) {
+                w.println("[" + i + "] " + subscriptions.get(i).display());
+            }
+            JOptionPane.showMessageDialog(this, "Exported to " + file);
+        } catch (IOException e) {
+            showError("Export failed: " + e.getMessage());
+        }
+    }
+
+    private void loadFile() {
+        JFileChooser fc = new JFileChooser(".");
+        if (fc.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) return;
+
+        try (BufferedReader r = new BufferedReader(new FileReader(fc.getSelectedFile()))) {
+            JFrame f = new JFrame("File: " + fc.getSelectedFile().getName());
+            JTextArea ta = new JTextArea(20, 60);
+            ta.setFont(new Font("Monospaced", Font.PLAIN, 12));
+            r.lines().forEach(l -> ta.append(l + "\n"));
+            f.add(new JScrollPane(ta));
+            f.pack();
+            f.setLocationRelativeTo(this);
+            f.setVisible(true);
+        } catch (IOException e) {
+            showError("Load failed: " + e.getMessage());
+        }
+    }
+
+    // Helper methods
+    private String getText(JTextField f) {
+        String t = f.getText().trim();
+        if (t.isEmpty()) throw new IllegalArgumentException("Field cannot be empty");
+        return t;
+    }
+    private double getDouble(JTextField f) { return Double.parseDouble(getText(f)); }
+    private int getInt(JTextField f) { return Integer.parseInt(getText(f)); }
+    private void showError(String msg) {
+        JOptionPane.showMessageDialog(this, msg, "Error", JOptionPane.ERROR_MESSAGE);
+    }
+
+    public static void main(String[] args) {
+        SwingUtilities.invokeLater(() -> new SubscriptionGUI().setVisible(true));
+    }
+}
